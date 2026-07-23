@@ -3,7 +3,7 @@
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Book, Section } from "../lib/books";
 
 type Highlight = { text: string; createdAt: string };
@@ -13,7 +13,7 @@ function storageKey(prefix: string, book: Book) {
 }
 
 export default function ReaderView({ book, section, content }: { book: Book; section: Section; content: string }) {
-  const [progress, setProgress] = useState(0);
+  const progressBarRef = useRef<HTMLSpanElement>(null);
   const [bookmarked, setBookmarked] = useState(false);
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState(false);
@@ -34,21 +34,44 @@ export default function ReaderView({ book, section, content }: { book: Book; sec
     setNote(notes[noteKey] || "");
     setHighlights(savedHighlights[noteKey] || []);
     const storedProgress = progressMap[noteKey] || 0;
-    setProgress(storedProgress);
-    if (storedProgress > 0) window.setTimeout(() => window.scrollTo({ top: document.documentElement.scrollHeight * storedProgress, behavior: "instant" as ScrollBehavior }), 80);
+    if (progressBarRef.current) progressBarRef.current.style.width = `${storedProgress * 100}%`;
+    const restoreTimer = storedProgress > 0 ? window.setTimeout(() => window.scrollTo({ top: document.documentElement.scrollHeight * storedProgress, behavior: "smooth" }), 80) : null;
+    return () => {
+      if (restoreTimer !== null) window.clearTimeout(restoreTimer);
+    };
   }, [book, noteKey, section.slug]);
 
   useEffect(() => {
-    const onScroll = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      const value = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
-      setProgress(value);
+    let frame: number | null = null;
+    let saveTimer: number | null = null;
+    let latestProgress = 0;
+
+    const saveProgress = () => {
       const progressMap = JSON.parse(localStorage.getItem(storageKey("progress", book)) || "{}") as Record<string, number>;
-      progressMap[noteKey] = value;
+      progressMap[noteKey] = latestProgress;
       localStorage.setItem(storageKey("progress", book), JSON.stringify(progressMap));
+      saveTimer = null;
     };
+
+    const onScroll = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        latestProgress = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+        if (progressBarRef.current) progressBarRef.current.style.width = `${latestProgress * 100}%`;
+        if (saveTimer !== null) window.clearTimeout(saveTimer);
+        saveTimer = window.setTimeout(saveProgress, 240);
+      });
+    };
+
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      if (saveTimer !== null) window.clearTimeout(saveTimer);
+      if (latestProgress > 0) saveProgress();
+    };
   }, [book, noteKey]);
 
   const sectionLinks = useMemo(() => book.sections.slice(Math.max(0, sectionIndex - 2), Math.min(book.sections.length, sectionIndex + 3)), [book.sections, sectionIndex]);
@@ -98,7 +121,7 @@ export default function ReaderView({ book, section, content }: { book: Book; sec
             <button className="ghost-button" disabled title="下一阶段接入">AI 问答</button>
           </div>
         </div>
-        <div className="reader-progress"><span style={{ width: `${progress * 100}%` }} /></div>
+        <div className="reader-progress"><span ref={progressBarRef} /></div>
       </header>
 
       <div className="reader-layout">

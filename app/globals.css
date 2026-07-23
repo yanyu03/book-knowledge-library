@@ -12,7 +12,7 @@
 
 * { box-sizing: border-box; }
 
-html { background: var(--bg); }
+html { background: var(--bg); scroll-behavior: smooth; scrollbar-gutter: stable; }
 
 html, body { min-width: 320px; overflow-x: hidden; }
 
@@ -210,6 +210,14 @@ img, svg, video { max-width: 100%; }
 .nav-card.next { text-align: right; }
 .nav-card small { display: block; color: var(--muted); font-size: 11px; margin-bottom: 6px; }
 .nav-card span { display: block; color: var(--accent); font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+
+@media (min-width: 1181px) {
+  .reader-layout { display: block; width: 100%; }
+  .reader-main { width: min(760px, calc(100vw - 560px)); margin: 0 auto; }
+  .reader-toc, .reader-notes { position: fixed; top: 92px; z-index: 5; max-height: calc(100vh - 112px); }
+  .reader-toc { left: max(16px, calc((100vw - 1400px) / 2)); width: 230px; }
+  .reader-notes { right: max(16px, calc((100vw - 1400px) / 2)); width: 270px; }
+}
 
 @media (max-width: 1180px) {
   .reader-layout { grid-template-columns: 200px minmax(0, 1fr) 240px; gap: 22px; }
